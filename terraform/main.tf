@@ -7,6 +7,60 @@ resource "aws_s3_bucket_acl" "example" {
   acl    = "private"
 }
 
+resource "aws_iam_role" "role" {
+  name = "api-gateway-s3-role"
+
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": "sts:AssumeRole",
+      "Principal": {
+        "Service": "ec2.amazonaws.com"
+      },
+      "Effect": "Allow",
+      "Sid": ""
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_policy" "policy" {
+  name        = "api-gateway-s3-policy"
+  description = "A test policy"
+
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+     "Action": [
+       "logs:CreateLogGroup",
+       "logs:CreateLogStream",
+       "logs:PutLogEvents"
+     ],
+     "Resource": "arn:aws:logs:*:*:*",
+     "Effect": "Allow"
+   },
+   {
+        "Effect": "Allow",
+        "Action": [
+            "s3:*"
+        ],
+        "Resource": "arn:aws:s3:::*"
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_role_policy_attachment" "test-attach" {
+  role       = aws_iam_role.role.name
+  policy_arn = aws_iam_policy.policy.arn
+}
+
 resource "aws_api_gateway_rest_api" "frontend_api_gateway" {
   name = "FrontendGateway"
 }
@@ -35,12 +89,23 @@ resource "aws_api_gateway_integration" "frontend_file_handler" {
   resource_id             = aws_api_gateway_resource.frontend_file_resource.id
   rest_api_id             = aws_api_gateway_rest_api.frontend_api_gateway.id
   type                    = "AWS"
-  uri                     = "arn:aws:apigateway:us-east-2:s3:path/ostrich-frontend/{path}"
-  credentials             = "arn:aws:iam::396874187734:role/ostrich-api-gateway-s3"
+  uri                     = "arn:aws:apigateway:us-east-2:s3:path/${aws_s3_bucket.bucket.bucket}/{path}"
+  credentials             = aws_iam_role.role.arn
   request_parameters = {
     "integration.request.path.path" = "method.request.path.path"
     "integration.request.header.Content-Type" = "method.request.header.Content-Type"
     "integration.request.header.Accept" = "method.request.header.Accept"
+  }
+}
+
+resource "aws_api_gateway_method_response" "frontend_file_method_response" {
+  rest_api_id = aws_api_gateway_rest_api.frontend_api_gateway.id
+  resource_id = aws_api_gateway_resource.frontend_file_resource.id
+  http_method = aws_api_gateway_method.frontend_file_method.http_method
+  status_code = "200"
+  response_parameters = { 
+    "method.response.header.Content-Type" = true 
+    "method.response.header.Content-Length" = true 
   }
 }
 
@@ -53,16 +118,5 @@ resource "aws_api_gateway_integration_response" "frontend_file_integration_respo
   response_parameters = { 
     "method.response.header.Content-Length" = "integration.response.header.Content-Length"
     "method.response.header.Content-Type" = "integration.response.header.Content-Type"
-  }
-}
-
-resource "aws_api_gateway_method_response" "frontend_file_method_response" {
-  rest_api_id = aws_api_gateway_rest_api.frontend_api_gateway.id
-  resource_id = aws_api_gateway_resource.frontend_file_resource.id
-  http_method = aws_api_gateway_method.frontend_file_method.http_method
-  status_code = "200"
-  response_parameters = { 
-    "method.response.header.Content-Type" = true 
-    "method.response.header.Content-Length" = true 
   }
 }
