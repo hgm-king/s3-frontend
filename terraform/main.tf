@@ -177,7 +177,6 @@ resource "aws_api_gateway_integration_response" "index_file_integration_response
   resource_id = aws_api_gateway_rest_api.frontend_api_gateway.root_resource_id
   http_method = aws_api_gateway_method.index_file_method.http_method
   status_code = aws_api_gateway_method_response.index_file_method_response.status_code
-
   response_parameters = { 
     "method.response.header.Content-Length" = "integration.response.header.Content-Length"
     "method.response.header.Content-Type" = "integration.response.header.Content-Type"
